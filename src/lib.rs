@@ -19,7 +19,7 @@ pub struct OsStrItems<'a>(std::os::windows::ffi::EncodeWide<'a>);
 pub struct OsStrItems<'a>(std::slice::Iter<'a, u8>);
 
 #[cfg(target_family = "windows")]
-impl<'a> Iterator for OsStrItem<'a> {
+impl<'a> Iterator for OsStrItems<'a> {
     type Item = OsStrItem;
     fn next(&mut self) -> Option<Self::Item> {
         Some(OsStrItem(self.0.next()?))
