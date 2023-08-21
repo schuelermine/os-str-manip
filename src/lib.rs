@@ -18,6 +18,18 @@ pub struct OsStrItems<'a>(std::os::windows::ffi::EncodeWide<'a>);
 #[cfg(any(target_family = "wasm", target_family = "unix"))]
 pub struct OsStrItems<'a>(std::slice::Iter<'a, u8>);
 
+#[cfg(target_family = "windows")]
+impl<'a> Iterator for OsStrItem<'a> {
+    type Item = OsStrItem;
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(OsStrItem(self.0.next()?))
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
+}
+
+#[cfg(any(target_family = "wasm", target_family = "unix"))]
 impl<'a> Iterator for OsStrItems<'a> {
     type Item = OsStrItem;
     fn next(&mut self) -> Option<Self::Item> {
