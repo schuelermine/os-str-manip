@@ -72,7 +72,7 @@ impl OsStrItem {
 }
 
 pub trait OsStrManip {
-    fn items<'a>(&'a self) -> OsStrItems<'a>;
+    fn items(&self) -> OsStrItems<'_>;
     fn index(&self, idx: impl OsStrIndex) -> OsString;
     #[cfg(feature = "unchecked_index")]
     unsafe fn index_unchecked(&self, idx: impl OsStrIndex) -> OsString;
@@ -80,11 +80,11 @@ pub trait OsStrManip {
 
 impl OsStrManip for OsStr {
     #[cfg(any(target_os = "wasi", target_family = "unix"))]
-    fn items<'a>(&'a self) -> OsStrItems<'a> {
+    fn items(&self) -> OsStrItems<'_> {
         OsStrItems(self.as_bytes().iter())
     }
     #[cfg(target_family = "windows")]
-    fn items<'a>(&'a self) -> OsStrItems<'a> {
+    fn items(&self) -> OsStrItems<'_> {
         OsStrItems(self.encode_wide())
     }
     fn index(&self, idx: impl OsStrIndex) -> OsString {
