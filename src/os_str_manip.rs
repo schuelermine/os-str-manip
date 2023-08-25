@@ -25,28 +25,16 @@ impl PlatformSpecificType {
 
 #[cfg(not(doc))]
 #[cfg(any(target_os = "wasi", target_family = "unix"))]
-#[derive(Clone, Copy)]
-pub struct OsStrItem(u8);
-
-#[cfg(not(doc))]
-#[cfg(any(target_os = "wasi", target_family = "unix"))]
 type OsStrItemRaw = u8;
-
-#[cfg(not(doc))]
-#[cfg(target_family = "windows")]
-#[derive(Clone, Copy)]
-pub struct OsStrItem(u16);
 
 #[cfg(not(doc))]
 #[cfg(target_family = "windows")]
 type OsStrItemRaw = u16;
 
 #[cfg(doc)]
-#[derive(Clone, Copy)]
-pub struct OsStrItem(());
+type OsStrItemRaw = PlatformSpecificType;
 
-#[cfg(doc)]
-type OsStrItemRaw = PlaformSpecificType;
+pub struct OsStrItem(OsStrItemRaw);
 
 impl OsStrItem {
     #[cfg(not(doc))]
