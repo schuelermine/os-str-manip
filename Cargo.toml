@@ -2,3 +2,7 @@
 name = "os-str-manip"
 version = "0.1.0"
 edition = "2021"
+
+[features]
+generic_map_raw = []
+unchecked_index = []

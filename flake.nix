@@ -16,5 +16,8 @@
           targets.x86_64-pc-windows-msvc.stable.rust-std
         ])];
       };
+      devShells.nightly = pkgs.mkShell {
+        packages = [ fenix.packages.${system}.complete.toolchain ];
+      };
     });
 }
