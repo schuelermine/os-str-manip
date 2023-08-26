@@ -433,18 +433,10 @@ impl<C: OsStrMultiItemEq<OsStrItemRaw>> OsStrSearcher
     }
 }
 
-impl<'a, C: OsStrMultiItemEq<OsStrItem>> OsStrPattern<'a> for C {
-    type Searcher = OsStrMultiItemEqSearcher<'a, OsStrItem, C>;
+impl<'a, T: OsStrItemRep, F: FnMut(T) -> bool> OsStrPattern<'a> for F {
+    type Searcher = OsStrMultiItemEqSearcher<'a, T, F>;
 
     fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
-        OsStrMultiItemEqSearcher::new(haystack.items(), 0, self)
-    }
-}
-
-impl<'a, C: OsStrMultiItemEq<OsStrItemRaw>> OsStrPattern<'a> for C {
-    type Searcher = OsStrMultiItemEqSearcher<'a, OsStrItem, C>;
-
-    fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
-        OsStrMultiItemEqSearcher::new(haystack.items(), 0, self)
+        todo!()
     }
 }
