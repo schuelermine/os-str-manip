@@ -1,7 +1,6 @@
 #![allow(clippy::wrong_self_convention)]
 
 use std::ffi::{OsStr, OsString};
-use std::iter::Map;
 
 #[cfg(target_family = "unix")]
 use std::os::unix::ffi::OsStrExt;
@@ -25,48 +24,24 @@ impl PlatformSpecificType {
 
 #[cfg(not(doc))]
 #[cfg(any(target_os = "wasi", target_family = "unix"))]
-type OsStrItemRaw = u8;
+type OsStrItem = u8;
 
 #[cfg(not(doc))]
 #[cfg(target_family = "windows")]
-pub type OsStrItemRaw = u16;
+type OsStrItem = u16;
 
 #[cfg(doc)]
-type OsStrItemRaw = PlatformSpecificType;
+type OsStrItem = PlatformSpecificType;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct OsStrItem(OsStrItemRaw);
+type OsStrVec = Vec<OsStrItem>;
 
-pub trait OsStrItemRep: Eq {
-    fn raw(self) -> OsStrItemRaw;
+pub trait OsStrItemExt {
+    fn to_os_string(self) -> OsString;
 }
 
-impl OsStrItemRep for OsStrItem {
-    fn raw(self) -> OsStrItemRaw {
-        self.0
-    }
-}
-
-impl OsStrItemRep for OsStrItemRaw {
-    fn raw(self) -> OsStrItemRaw {
-        self
-    }
-}
-
-type OsStrVec = Vec<OsStrItemRaw>;
-
-impl OsStrItem {
-    pub fn raw(self) -> OsStrItemRaw {
-        OsStrItemRep::raw(self)
-    }
-    pub fn to_os_string(self) -> OsString {
+impl OsStrItemExt for OsStrItem {
+    fn to_os_string(self) -> OsString {
         std::iter::once(self).to_os_string()
-    }
-}
-
-impl From<OsStrItemRaw> for OsStrItem {
-    fn from(value: OsStrItemRaw) -> Self {
-        OsStrItem(value)
     }
 }
 
@@ -75,16 +50,10 @@ pub trait OsStrManip {
     fn index(&self, idx: impl OsStrIndex) -> OsString;
     #[cfg(feature = "unchecked_index")]
     unsafe fn index_unchecked(&self, idx: impl OsStrIndex) -> OsString;
-    fn starts_with<'a, T: OsStrItemRep>(&'a self, pat: impl OsStrPattern<'a, T>) -> bool;
-    fn ends_with<'a, T: OsStrItemRep>(&'a self, pat: impl OsStrPattern<'a, T>) -> bool;
-    fn strip_prefix<'a, T: OsStrItemRep>(
-        &'a self,
-        pat: impl OsStrPattern<'a, T>,
-    ) -> Option<OsString>;
-    fn strip_suffix<'a, T: OsStrItemRep>(
-        &'a self,
-        pat: impl OsStrPattern<'a, T>,
-    ) -> Option<OsString>;
+    fn starts_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool;
+    fn ends_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool;
+    fn strip_prefix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString>;
+    fn strip_suffix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString>;
 }
 
 impl OsStrManip for OsStr {
@@ -103,22 +72,16 @@ impl OsStrManip for OsStr {
     unsafe fn index_unchecked(&self, idx: impl OsStrIndex) -> OsString {
         idx.index_of_unchecked(self)
     }
-    fn starts_with<'a, T: OsStrItemRep>(&'a self, pat: impl OsStrPattern<'a, T>) -> bool {
+    fn starts_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool {
         pat.is_prefix_of(self)
     }
-    fn ends_with<'a, T: OsStrItemRep>(&'a self, pat: impl OsStrPattern<'a, T>) -> bool {
+    fn ends_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool {
         pat.is_suffix_of(self)
     }
-    fn strip_prefix<'a, T: OsStrItemRep>(
-        &'a self,
-        pat: impl OsStrPattern<'a, T>,
-    ) -> Option<OsString> {
+    fn strip_prefix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString> {
         pat.strip_prefix_of(self)
     }
-    fn strip_suffix<'a, T: OsStrItemRep>(
-        &'a self,
-        pat: impl OsStrPattern<'a, T>,
-    ) -> Option<OsString> {
+    fn strip_suffix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString> {
         pat.strip_suffix_of(self)
     }
 }
@@ -219,28 +182,22 @@ impl OsStrIndex for usize {
     }
 }
 
-pub trait OsStrItemsIter: Iterator + Sized
-where
-    Self::Item: OsStrItemRep,
-{
+pub trait OsStrItemsIter: Iterator<Item = OsStrItem> + Sized {
     #[cfg(any(target_os = "wasi", target_family = "unix"))]
     fn to_os_string(self) -> OsString {
-        OsStr::from_bytes(&self.map_raw().collect::<OsStrVec>()).to_os_string()
+        OsStr::from_bytes(&self.collect::<OsStrVec>()).to_os_string()
     }
     #[cfg(target_family = "windows")]
     fn to_os_string(self) -> OsString {
-        OsString::from_wide(&self.map_raw().collect::<OsStrVec>())
-    }
-    fn map_raw(self) -> Map<Self, fn(Self::Item) -> OsStrItemRaw> {
-        self.map(OsStrItemRep::raw)
+        OsString::from_wide(&self.collect::<OsStrVec>())
     }
 }
 
-impl<T: Iterator> OsStrItemsIter for T where T::Item: OsStrItemRep {}
+impl<T: Iterator<Item = OsStrItem>> OsStrItemsIter for T {}
 
 #[cfg(any(target_os = "wasi", target_family = "unix"))]
 #[derive(Clone)]
-pub struct OsStrItems<'a>(std::slice::Iter<'a, OsStrItemRaw>);
+pub struct OsStrItems<'a>(std::slice::Iter<'a, OsStrItem>);
 
 #[cfg(target_family = "windows")]
 #[derive(Clone)]
@@ -251,18 +208,18 @@ impl<'a> Iterator for OsStrItems<'a> {
 
     #[cfg(any(target_os = "wasi", target_family = "unix"))]
     fn next(&mut self) -> Option<Self::Item> {
-        Some(OsStrItem(*self.0.next()?))
+        Some(*self.0.next()?)
     }
     #[cfg(target_family = "windows")]
     fn next(&mut self) -> Option<Self::Item> {
-        Some(OsStrItem(self.0.next()?))
+        Some(self.0.next()?)
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.0.size_hint()
     }
 }
 
-pub trait OsStrPattern<'a, T: OsStrItemRep>: Sized {
+pub trait OsStrPattern<'a>: Sized {
     type Searcher: OsStrSearcher;
 
     fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher;
@@ -337,8 +294,8 @@ pub enum OsStrSearchStep {
     Done,
 }
 
-impl<'a> OsStrPattern<'a, OsStrItemRaw> for OsStrItemRaw {
-    type Searcher = OsStrItemRepSearcher<'a, OsStrItemRaw>;
+impl<'a> OsStrPattern<'a> for OsStrItem {
+    type Searcher = OsStrItemRepSearcher<'a>;
 
     fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
         OsStrItemRepSearcher {
@@ -349,39 +306,13 @@ impl<'a> OsStrPattern<'a, OsStrItemRaw> for OsStrItemRaw {
     }
 }
 
-impl<'a> OsStrPattern<'a, OsStrItem> for OsStrItem {
-    type Searcher = OsStrItemRepSearcher<'a, OsStrItem>;
-
-    fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
-        OsStrItemRepSearcher {
-            haystack: haystack.items(),
-            finger: 0,
-            needle: self,
-        }
-    }
-}
-
-pub struct OsStrItemRepSearcher<'a, T: OsStrItemRep> {
+pub struct OsStrItemRepSearcher<'a> {
     haystack: OsStrItems<'a>,
     finger: usize,
-    needle: T,
+    needle: OsStrItem,
 }
 
-impl OsStrSearcher for OsStrItemRepSearcher<'_, OsStrItemRaw> {
-    fn next(&mut self) -> OsStrSearchStep {
-        let result = match self.haystack.next() {
-            Some(item) if item.raw() == self.needle => {
-                OsStrSearchStep::Match(self.finger, self.finger + 1)
-            }
-            Some(_) => OsStrSearchStep::Reject(self.finger, self.finger + 1),
-            None => OsStrSearchStep::Done,
-        };
-        self.finger += 1;
-        result
-    }
-}
-
-impl OsStrSearcher for OsStrItemRepSearcher<'_, OsStrItem> {
+impl OsStrSearcher for OsStrItemRepSearcher<'_> {
     fn next(&mut self) -> OsStrSearchStep {
         let result = match self.haystack.next() {
             Some(item) if item == self.needle => {
@@ -395,53 +326,51 @@ impl OsStrSearcher for OsStrItemRepSearcher<'_, OsStrItem> {
     }
 }
 
-pub trait OsStrMultiItemEq<T: OsStrItemRep> {
-    fn matches(&mut self, item: T) -> bool;
+pub trait OsStrMultiItemEq {
+    fn matches(&mut self, item: OsStrItem) -> bool;
 }
 
-impl<T: OsStrItemRep, F: FnMut(T) -> bool> OsStrMultiItemEq<T> for F {
-    fn matches(&mut self, item: T) -> bool {
+impl<F: FnMut(OsStrItem) -> bool> OsStrMultiItemEq for F {
+    fn matches(&mut self, item: OsStrItem) -> bool {
         self(item)
     }
 }
 
-impl<const N: usize, T: OsStrItemRep> OsStrMultiItemEq<T> for [T; N] {
-    fn matches(&mut self, item: T) -> bool {
+impl<const N: usize> OsStrMultiItemEq for [OsStrItem; N] {
+    fn matches(&mut self, item: OsStrItem) -> bool {
         self.contains(&item)
     }
 }
 
-impl<const N: usize, T: OsStrItemRep> OsStrMultiItemEq<T> for &[T; N] {
-    fn matches(&mut self, item: T) -> bool {
+impl<const N: usize> OsStrMultiItemEq for &[OsStrItem; N] {
+    fn matches(&mut self, item: OsStrItem) -> bool {
         self.contains(&item)
     }
 }
 
-impl<T: OsStrItemRep> OsStrMultiItemEq<T> for &[T] {
-    fn matches(&mut self, item: T) -> bool {
+impl OsStrMultiItemEq for &[OsStrItem] {
+    fn matches(&mut self, item: OsStrItem) -> bool {
         self.contains(&item)
     }
 }
 
-pub struct OsStrMultiItemEqSearcher<'a, T: OsStrItemRep, C: OsStrMultiItemEq<T>> {
+pub struct OsStrMultiItemEqSearcher<'a, C: OsStrMultiItemEq> {
     haystack: OsStrItems<'a>,
     finger: usize,
     needle: C,
-    _phantom: std::marker::PhantomData<T>,
 }
 
-impl<'a, T: OsStrItemRep, C: OsStrMultiItemEq<T>> OsStrMultiItemEqSearcher<'a, T, C> {
+impl<'a, C: OsStrMultiItemEq> OsStrMultiItemEqSearcher<'a, C> {
     fn new(haystack: OsStrItems<'a>, needle: C) -> Self {
         OsStrMultiItemEqSearcher {
             haystack,
             finger: 0,
             needle,
-            _phantom: std::marker::PhantomData::default(),
         }
     }
 }
 
-impl<C: OsStrMultiItemEq<OsStrItem>> OsStrSearcher for OsStrMultiItemEqSearcher<'_, OsStrItem, C> {
+impl<C: OsStrMultiItemEq> OsStrSearcher for OsStrMultiItemEqSearcher<'_, C> {
     fn next(&mut self) -> OsStrSearchStep {
         let result = match self.haystack.next() {
             Some(item) if self.needle.matches(item) => {
@@ -455,32 +384,8 @@ impl<C: OsStrMultiItemEq<OsStrItem>> OsStrSearcher for OsStrMultiItemEqSearcher<
     }
 }
 
-impl<C: OsStrMultiItemEq<OsStrItemRaw>> OsStrSearcher
-    for OsStrMultiItemEqSearcher<'_, OsStrItemRaw, C>
-{
-    fn next(&mut self) -> OsStrSearchStep {
-        let result = match self.haystack.next() {
-            Some(item) if self.needle.matches(item.raw()) => {
-                OsStrSearchStep::Match(self.finger, self.finger + 1)
-            }
-            Some(_) => OsStrSearchStep::Reject(self.finger, self.finger + 1),
-            None => OsStrSearchStep::Done,
-        };
-        self.finger += 1;
-        result
-    }
-}
-
-impl<'a, C: OsStrMultiItemEq<OsStrItem>> OsStrPattern<'a, OsStrItem> for C {
-    type Searcher = OsStrMultiItemEqSearcher<'a, OsStrItem, C>;
-
-    fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
-        Self::Searcher::new(haystack.items(), self)
-    }
-}
-
-impl<'a, C: OsStrMultiItemEq<OsStrItemRaw>> OsStrPattern<'a, OsStrItemRaw> for C {
-    type Searcher = OsStrMultiItemEqSearcher<'a, OsStrItemRaw, C>;
+impl<'a, C: OsStrMultiItemEq> OsStrPattern<'a> for C {
+    type Searcher = OsStrMultiItemEqSearcher<'a, C>;
 
     fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
         Self::Searcher::new(haystack.items(), self)
