@@ -75,10 +75,16 @@ pub trait OsStrManip {
     fn index(&self, idx: impl OsStrIndex) -> OsString;
     #[cfg(feature = "unchecked_index")]
     unsafe fn index_unchecked(&self, idx: impl OsStrIndex) -> OsString;
-    fn starts_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool;
-    fn ends_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool;
-    fn strip_prefix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString>;
-    fn strip_suffix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString>;
+    fn starts_with<'a, T: OsStrItemRep>(&'a self, pat: impl OsStrPattern<'a, T>) -> bool;
+    fn ends_with<'a, T: OsStrItemRep>(&'a self, pat: impl OsStrPattern<'a, T>) -> bool;
+    fn strip_prefix<'a, T: OsStrItemRep>(
+        &'a self,
+        pat: impl OsStrPattern<'a, T>,
+    ) -> Option<OsString>;
+    fn strip_suffix<'a, T: OsStrItemRep>(
+        &'a self,
+        pat: impl OsStrPattern<'a, T>,
+    ) -> Option<OsString>;
 }
 
 impl OsStrManip for OsStr {
@@ -97,16 +103,22 @@ impl OsStrManip for OsStr {
     unsafe fn index_unchecked(&self, idx: impl OsStrIndex) -> OsString {
         idx.index_of_unchecked(self)
     }
-    fn starts_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool {
+    fn starts_with<'a, T: OsStrItemRep>(&'a self, pat: impl OsStrPattern<'a, T>) -> bool {
         pat.is_prefix_of(self)
     }
-    fn ends_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool {
+    fn ends_with<'a, T: OsStrItemRep>(&'a self, pat: impl OsStrPattern<'a, T>) -> bool {
         pat.is_suffix_of(self)
     }
-    fn strip_prefix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString> {
+    fn strip_prefix<'a, T: OsStrItemRep>(
+        &'a self,
+        pat: impl OsStrPattern<'a, T>,
+    ) -> Option<OsString> {
         pat.strip_prefix_of(self)
     }
-    fn strip_suffix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString> {
+    fn strip_suffix<'a, T: OsStrItemRep>(
+        &'a self,
+        pat: impl OsStrPattern<'a, T>,
+    ) -> Option<OsString> {
         pat.strip_suffix_of(self)
     }
 }
@@ -250,7 +262,7 @@ impl<'a> Iterator for OsStrItems<'a> {
     }
 }
 
-pub trait OsStrPattern<'a>: Sized {
+pub trait OsStrPattern<'a, T: OsStrItemRep>: Sized {
     type Searcher: OsStrSearcher;
 
     fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher;
@@ -325,28 +337,54 @@ pub enum OsStrSearchStep {
     Done,
 }
 
-impl<'a> OsStrPattern<'a> for OsStrItem {
-    type Searcher = OsStrItemSearcher<'a>;
+impl<'a> OsStrPattern<'a, OsStrItemRaw> for OsStrItemRaw {
+    type Searcher = OsStrItemRepSearcher<'a, OsStrItemRaw>;
 
     fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
-        OsStrItemSearcher {
+        OsStrItemRepSearcher {
             haystack: haystack.items(),
             finger: 0,
-            needle: self.raw(),
+            needle: self,
         }
     }
 }
 
-pub struct OsStrItemSearcher<'a> {
-    haystack: OsStrItems<'a>,
-    finger: usize,
-    needle: OsStrItemRaw,
+impl<'a> OsStrPattern<'a, OsStrItem> for OsStrItem {
+    type Searcher = OsStrItemRepSearcher<'a, OsStrItem>;
+
+    fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
+        OsStrItemRepSearcher {
+            haystack: haystack.items(),
+            finger: 0,
+            needle: self,
+        }
+    }
 }
 
-impl OsStrSearcher for OsStrItemSearcher<'_> {
+pub struct OsStrItemRepSearcher<'a, T: OsStrItemRep> {
+    haystack: OsStrItems<'a>,
+    finger: usize,
+    needle: T,
+}
+
+impl OsStrSearcher for OsStrItemRepSearcher<'_, OsStrItemRaw> {
     fn next(&mut self) -> OsStrSearchStep {
         let result = match self.haystack.next() {
             Some(item) if item.raw() == self.needle => {
+                OsStrSearchStep::Match(self.finger, self.finger + 1)
+            }
+            Some(_) => OsStrSearchStep::Reject(self.finger, self.finger + 1),
+            None => OsStrSearchStep::Done,
+        };
+        self.finger += 1;
+        result
+    }
+}
+
+impl OsStrSearcher for OsStrItemRepSearcher<'_, OsStrItem> {
+    fn next(&mut self) -> OsStrSearchStep {
+        let result = match self.haystack.next() {
+            Some(item) if item == self.needle => {
                 OsStrSearchStep::Match(self.finger, self.finger + 1)
             }
             Some(_) => OsStrSearchStep::Reject(self.finger, self.finger + 1),
@@ -393,10 +431,10 @@ pub struct OsStrMultiItemEqSearcher<'a, T: OsStrItemRep, C: OsStrMultiItemEq<T>>
 }
 
 impl<'a, T: OsStrItemRep, C: OsStrMultiItemEq<T>> OsStrMultiItemEqSearcher<'a, T, C> {
-    fn new(haystack: OsStrItems<'a>, finger: usize, needle: C) -> Self {
+    fn new(haystack: OsStrItems<'a>, needle: C) -> Self {
         OsStrMultiItemEqSearcher {
             haystack,
-            finger,
+            finger: 0,
             needle,
             _phantom: std::marker::PhantomData::default(),
         }
@@ -433,10 +471,18 @@ impl<C: OsStrMultiItemEq<OsStrItemRaw>> OsStrSearcher
     }
 }
 
-impl<'a, T: OsStrItemRep, F: FnMut(T) -> bool> OsStrPattern<'a> for F {
-    type Searcher = OsStrMultiItemEqSearcher<'a, T, F>;
+impl<'a, C: OsStrMultiItemEq<OsStrItem>> OsStrPattern<'a, OsStrItem> for C {
+    type Searcher = OsStrMultiItemEqSearcher<'a, OsStrItem, C>;
 
     fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
-        todo!()
+        Self::Searcher::new(haystack.items(), self)
+    }
+}
+
+impl<'a, C: OsStrMultiItemEq<OsStrItemRaw>> OsStrPattern<'a, OsStrItemRaw> for C {
+    type Searcher = OsStrMultiItemEqSearcher<'a, OsStrItemRaw, C>;
+
+    fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
+        Self::Searcher::new(haystack.items(), self)
     }
 }
