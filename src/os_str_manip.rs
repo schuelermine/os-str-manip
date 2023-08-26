@@ -73,10 +73,10 @@ pub trait OsStrManip {
     fn index(&self, idx: impl OsStrIndex) -> OsString;
     #[cfg(feature = "unchecked_index")]
     unsafe fn index_unchecked(&self, idx: impl OsStrIndex) -> OsString;
-    fn starts_with<'a>(&'a self, pat: impl OsPattern<'a>) -> bool;
-    fn ends_with<'a>(&'a self, pat: impl OsPattern<'a>) -> bool;
-    fn strip_prefix<'a>(&'a self, pat: impl OsPattern<'a>) -> Option<OsString>;
-    fn strip_suffix<'a>(&'a self, pat: impl OsPattern<'a>) -> Option<OsString>;
+    fn starts_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool;
+    fn ends_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool;
+    fn strip_prefix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString>;
+    fn strip_suffix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString>;
 }
 
 impl OsStrManip for OsStr {
@@ -95,16 +95,16 @@ impl OsStrManip for OsStr {
     unsafe fn index_unchecked(&self, idx: impl OsStrIndex) -> OsString {
         idx.index_of_unchecked(self)
     }
-    fn starts_with<'a>(&'a self, pat: impl OsPattern<'a>) -> bool {
+    fn starts_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool {
         pat.is_prefix_of(self)
     }
-    fn ends_with<'a>(&'a self, pat: impl OsPattern<'a>) -> bool {
+    fn ends_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool {
         pat.is_suffix_of(self)
     }
-    fn strip_prefix<'a>(&'a self, pat: impl OsPattern<'a>) -> Option<OsString> {
+    fn strip_prefix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString> {
         pat.strip_prefix_of(self)
     }
-    fn strip_suffix<'a>(&'a self, pat: impl OsPattern<'a>) -> Option<OsString> {
+    fn strip_suffix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString> {
         pat.strip_suffix_of(self)
     }
 }
@@ -256,8 +256,8 @@ impl<'a> Iterator for OsStrItems<'a> {
     }
 }
 
-pub trait OsPattern<'a>: Sized {
-    type Searcher: OsSearcher;
+pub trait OsStrPattern<'a>: Sized {
+    type Searcher: OsStrSearcher;
 
     fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher;
 
@@ -267,22 +267,22 @@ pub trait OsPattern<'a>: Sized {
     fn is_prefix_of(self, haystack: &'a OsStr) -> bool {
         matches!(
             self.into_searcher(haystack).next(),
-            OsSearchStep::Match(0, _)
+            OsStrSearchStep::Match(0, _)
         )
     }
     fn is_suffix_of(self, haystack: &'a OsStr) -> bool {
         let mut searcher = self.into_searcher(haystack);
         loop {
             match searcher.next() {
-                OsSearchStep::Done => return false,
-                OsSearchStep::Match(_, end) if end == haystack.len() => return true,
+                OsStrSearchStep::Done => return false,
+                OsStrSearchStep::Match(_, end) if end == haystack.len() => return true,
                 _ => continue,
             }
         }
     }
     fn strip_prefix_of(self, haystack: &'a OsStr) -> Option<OsString> {
-        if let OsSearchStep::Match(start, len) = self.into_searcher(haystack).next() {
-            debug_assert_eq!(start, 0, "OsSearcher::next().0 must be 0 on first call");
+        if let OsStrSearchStep::Match(start, len) = self.into_searcher(haystack).next() {
+            debug_assert_eq!(start, 0, "OsStrSearcher::next().0 must be 0 on first call");
             Some(haystack.index(len..))
         } else {
             None
@@ -292,8 +292,8 @@ pub trait OsPattern<'a>: Sized {
         let mut searcher = self.into_searcher(haystack);
         loop {
             match searcher.next() {
-                OsSearchStep::Done => return None,
-                OsSearchStep::Match(start, end) if end == haystack.len() => {
+                OsStrSearchStep::Done => return None,
+                OsStrSearchStep::Match(start, end) if end == haystack.len() => {
                     return Some(haystack.index(..start))
                 }
                 _ => continue,
@@ -302,14 +302,14 @@ pub trait OsPattern<'a>: Sized {
     }
 }
 
-pub trait OsSearcher {
-    fn next(&mut self) -> OsSearchStep;
+pub trait OsStrSearcher {
+    fn next(&mut self) -> OsStrSearchStep;
 
     fn next_match(&mut self) -> Option<(usize, usize)> {
         loop {
             match self.next() {
-                OsSearchStep::Match(a, b) => return Some((a, b)),
-                OsSearchStep::Done => return None,
+                OsStrSearchStep::Match(a, b) => return Some((a, b)),
+                OsStrSearchStep::Done => return None,
                 _ => continue,
             }
         }
@@ -317,21 +317,21 @@ pub trait OsSearcher {
     fn next_reject(&mut self) -> Option<(usize, usize)> {
         loop {
             match self.next() {
-                OsSearchStep::Match(a, b) => return Some((a, b)),
-                OsSearchStep::Done => return None,
+                OsStrSearchStep::Match(a, b) => return Some((a, b)),
+                OsStrSearchStep::Done => return None,
                 _ => continue,
             }
         }
     }
 }
 
-pub enum OsSearchStep {
+pub enum OsStrSearchStep {
     Match(usize, usize),
     Reject(usize, usize),
     Done,
 }
 
-impl<'a> OsPattern<'a> for OsStrItem {
+impl<'a> OsStrPattern<'a> for OsStrItem {
     type Searcher = OsStrItemSearcher<'a>;
 
     fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
@@ -349,14 +349,14 @@ pub struct OsStrItemSearcher<'a> {
     needle: OsStrItemRaw,
 }
 
-impl OsSearcher for OsStrItemSearcher<'_> {
-    fn next(&mut self) -> OsSearchStep {
+impl OsStrSearcher for OsStrItemSearcher<'_> {
+    fn next(&mut self) -> OsStrSearchStep {
         let result = match self.haystack.next() {
             Some(item) if item.raw() == self.needle => {
-                OsSearchStep::Match(self.finger, self.finger + 1)
+                OsStrSearchStep::Match(self.finger, self.finger + 1)
             }
-            Some(_) => OsSearchStep::Reject(self.finger, self.finger + 1),
-            None => OsSearchStep::Done,
+            Some(_) => OsStrSearchStep::Reject(self.finger, self.finger + 1),
+            None => OsStrSearchStep::Done,
         };
         self.finger += 1;
         result
