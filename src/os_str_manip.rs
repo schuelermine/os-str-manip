@@ -59,7 +59,7 @@ pub trait OsStrManip {
 impl OsStrManip for OsStr {
     #[cfg(any(target_os = "wasi", target_family = "unix"))]
     fn items(&self) -> OsStrItems<'_> {
-        OsStrItems(self.as_bytes().iter())
+        OsStrItems(self.as_bytes().iter().copied())
     }
     #[cfg(target_family = "windows")]
     fn items(&self) -> OsStrItems<'_> {
@@ -197,7 +197,7 @@ impl<T: Iterator<Item = OsStrItem>> OsStrItemsIter for T {}
 
 #[cfg(any(target_os = "wasi", target_family = "unix"))]
 #[derive(Clone)]
-pub struct OsStrItems<'a>(std::slice::Iter<'a, OsStrItem>);
+pub struct OsStrItems<'a>(std::iter::Copied<std::slice::Iter<'a, OsStrItem>>);
 
 #[cfg(target_family = "windows")]
 #[derive(Clone)]
@@ -208,7 +208,7 @@ impl<'a> Iterator for OsStrItems<'a> {
 
     #[cfg(any(target_os = "wasi", target_family = "unix"))]
     fn next(&mut self) -> Option<Self::Item> {
-        Some(*self.0.next()?)
+        Some(self.0.next()?)
     }
     #[cfg(target_family = "windows")]
     fn next(&mut self) -> Option<Self::Item> {
