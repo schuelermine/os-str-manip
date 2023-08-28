@@ -40,8 +40,14 @@ pub trait OsStringFromItem {
 }
 
 impl OsStringFromItem for OsStrItem {
+    #[cfg(any(target_os = "wasi", target_family = "unix"))]
     fn to_os_string(self) -> OsString {
-        std::iter::once(self).to_os_string()
+        OsStr::from_bytes(&[self]).to_os_string()
+    }
+
+    #[cfg(target_family = "windows")]
+    fn to_os_string(self) -> OsString {
+        OsString::from_wide(&[self])
     }
 }
 
