@@ -58,6 +58,7 @@ pub trait OsStrManip {
     unsafe fn index_unchecked(&self, idx: impl OsStrIndex) -> OsString;
     fn starts_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool;
     fn ends_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool;
+    fn contains<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool;
     fn strip_prefix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString>;
     fn strip_suffix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString>;
 }
@@ -83,6 +84,9 @@ impl OsStrManip for OsStr {
     }
     fn ends_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool {
         pat.is_suffix_of(self)
+    }
+    fn contains<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool {
+        pat.is_contained_in(self)
     }
     fn strip_prefix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString> {
         pat.strip_prefix_of(self)
@@ -446,24 +450,26 @@ impl<'a, 'b> OsStrSearcher for OsStrSubstringSearcher<'a, 'b> {
                 }
             }
             OsStrSubstringSearcherImpl::NonEmptyNeedle { needle } => {
+                let len = self.haystack.len();
                 let start = self.finger;
-                if self.haystack.len() - self.finger < needle.len() {
-                    return OsStrSearchStep::Reject(start, self.haystack.len());
-                }
-                let mut needle_iter = needle.items();
-                let iter = self
-                    .haystack
-                    .items()
-                    .skip(self.finger)
-                    .zip(needle_iter.by_ref());
-                for (haystack_item, needle_item) in iter {
-                    self.finger += 1;
-                    if haystack_item != needle_item {
-                        return OsStrSearchStep::Reject(start, self.finger);
+                if self.finger == len {
+                    OsStrSearchStep::Done
+                } else if self.haystack.len() - start < needle.len() {
+                    self.finger = len;
+                    OsStrSearchStep::Reject(start, self.haystack.len())
+                } else {
+                    let mut needle_iter = needle.items();
+                    for (haystack_item, needle_item) in
+                        self.haystack.items().skip(start).zip(needle_iter.by_ref())
+                    {
+                        self.finger += 1;
+                        if haystack_item != needle_item {
+                            return OsStrSearchStep::Reject(start, self.finger);
+                        }
                     }
+                    debug_assert!(needle_iter.next().is_none());
+                    OsStrSearchStep::Match(start, self.finger)
                 }
-                debug_assert!(needle_iter.next().is_none());
-                OsStrSearchStep::Match(start, self.finger)
             }
         }
     }
