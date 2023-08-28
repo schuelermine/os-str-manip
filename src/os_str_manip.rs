@@ -2,25 +2,22 @@
 
 use std::ffi::{OsStr, OsString};
 
+#[cfg(not(doc))]
 #[cfg(target_family = "unix")]
 use std::os::unix::ffi::OsStrExt;
 
+#[cfg(not(doc))]
 #[cfg(target_os = "wasi")]
 use std::os::wasi::ffi::OsStrExt;
 
+#[cfg(not(doc))]
 #[cfg(target_family = "windows")]
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
 
 #[cfg(doc)]
 #[doc(hidden)]
-struct PlatformSpecificType;
-
-#[cfg(doc)]
-impl PlatformSpecificType {
-    fn from_any<T>(_: T) {
-        PlatformSpecificType
-    }
-}
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct PlatformSpecificType;
 
 #[cfg(not(doc))]
 #[cfg(any(target_os = "wasi", target_family = "unix"))]
@@ -33,25 +30,47 @@ type OsStrItem = u16;
 #[cfg(doc)]
 type OsStrItem = PlatformSpecificType;
 
+#[cfg(not(doc))]
 type OsStrVec = Vec<OsStrItem>;
 
-pub trait OsStringFromItem {
+mod os_string_from_item_sealed {
+    use super::OsStrItem;
+
+    pub trait Sealed {}
+    impl Sealed for OsStrItem {}
+}
+
+/// Create an [`OsString`] from a single OS string item
+pub trait OsStringFromItem: os_string_from_item_sealed::Sealed {
+    /// Create an [`OsString`] from a single OS string item
     fn to_os_string(self) -> OsString;
 }
 
 impl OsStringFromItem for OsStrItem {
+    #[cfg(not(doc))]
     #[cfg(any(target_os = "wasi", target_family = "unix"))]
     fn to_os_string(self) -> OsString {
         OsStr::from_bytes(&[self]).to_os_string()
     }
 
+    #[cfg(not(doc))]
     #[cfg(target_family = "windows")]
     fn to_os_string(self) -> OsString {
         OsString::from_wide(&[self])
     }
+
+    #[cfg(doc)]
+    fn to_os_string(self) -> OsString {
+        unreachable!()
+    }
 }
 
-pub trait OsStrManip {
+mod os_str_manip_sealed {
+    pub trait Sealed {}
+    impl Sealed for std::ffi::OsStr {}
+}
+
+pub trait OsStrManip: os_str_manip_sealed::Sealed {
     fn items(&self) -> OsStrItems<'_>;
     fn index(&self, idx: impl OsStrIndex) -> OsString;
     #[cfg(feature = "unchecked_index")]
@@ -64,13 +83,19 @@ pub trait OsStrManip {
 }
 
 impl OsStrManip for OsStr {
+    #[cfg(not(doc))]
     #[cfg(any(target_os = "wasi", target_family = "unix"))]
     fn items(&self) -> OsStrItems<'_> {
         OsStrItems(self.as_bytes().iter().copied())
     }
+    #[cfg(not(doc))]
     #[cfg(target_family = "windows")]
     fn items(&self) -> OsStrItems<'_> {
         OsStrItems(self.encode_wide())
+    }
+    #[cfg(doc)]
+    fn items(&self) -> OsStrItems<'_> {
+        unreachable!()
     }
     fn index(&self, idx: impl OsStrIndex) -> OsString {
         idx.index_of(self)
@@ -94,6 +119,16 @@ impl OsStrManip for OsStr {
     fn strip_suffix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString> {
         pat.strip_suffix_of(self)
     }
+}
+
+mod os_str_index_sealed {
+    pub trait Sealed {}
+    impl Sealed for std::ops::Range<usize> {}
+    impl Sealed for std::ops::RangeFrom<usize> {}
+    impl Sealed for std::ops::RangeFull {}
+    impl Sealed for std::ops::RangeInclusive<usize> {}
+    impl Sealed for std::ops::RangeTo<usize> {}
+    impl Sealed for std::ops::RangeToInclusive<usize> {}
 }
 
 pub trait OsStrIndex {
@@ -192,14 +227,29 @@ impl OsStrIndex for usize {
     }
 }
 
-pub trait OsStringFromIter: Iterator<Item = OsStrItem> + Sized {
+mod os_string_from_iter_sealed {
+    use super::OsStrItem;
+
+    pub trait Sealed {}
+    impl<T: Iterator<Item = OsStrItem>> Sealed for T {}
+}
+
+pub trait OsStringFromIter:
+    Iterator<Item = OsStrItem> + os_string_from_iter_sealed::Sealed + Sized
+{
+    #[cfg(not(doc))]
     #[cfg(any(target_os = "wasi", target_family = "unix"))]
     fn to_os_string(self) -> OsString {
         OsStr::from_bytes(&self.collect::<OsStrVec>()).to_os_string()
     }
+    #[cfg(not(doc))]
     #[cfg(target_family = "windows")]
     fn to_os_string(self) -> OsString {
         OsString::from_wide(&self.collect::<OsStrVec>())
+    }
+    #[cfg(doc)]
+    fn to_os_string(self) -> OsString {
+        unreachable!()
     }
 }
 
@@ -216,20 +266,33 @@ pub struct OsStrItems<'a>(std::os::windows::ffi::EncodeWide<'a>);
 impl<'a> Iterator for OsStrItems<'a> {
     type Item = OsStrItem;
 
+    #[cfg(not(doc))]
     #[cfg(any(target_os = "wasi", target_family = "unix"))]
     fn next(&mut self) -> Option<Self::Item> {
         Some(self.0.next()?)
     }
+    #[cfg(not(doc))]
     #[cfg(target_family = "windows")]
     fn next(&mut self) -> Option<Self::Item> {
         Some(self.0.next()?)
+    }
+    #[cfg(doc)]
+    fn next(&mut self) -> Option<Self::Item> {
+        unreachable!()
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.0.size_hint()
     }
 }
 
-pub trait OsStrPattern<'a>: Sized {
+mod os_str_pattern_sealed {
+    pub trait Sealed {}
+    impl Sealed for super::OsStrItem {}
+    impl<C: super::OsStrMultiItemEq> Sealed for C {}
+    impl Sealed for &std::ffi::OsStr {}
+}
+
+pub trait OsStrPattern<'a>: os_str_pattern_sealed::Sealed + Sized {
     type Searcher: OsStrSearcher;
 
     fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher;
@@ -275,7 +338,14 @@ pub trait OsStrPattern<'a>: Sized {
     }
 }
 
-pub trait OsStrSearcher {
+mod os_str_searcher_sealed {
+    pub trait Sealed {}
+    impl Sealed for super::OsStrItemSearcher<'_> {}
+    impl<C: super::OsStrMultiItemEq> Sealed for super::OsStrMultiItemEqSearcher<'_, C> {}
+    impl Sealed for super::OsStrSubstringSearcher<'_, '_> {}
+}
+
+pub trait OsStrSearcher: os_str_searcher_sealed::Sealed {
     fn next(&mut self) -> OsStrSearchStep;
 
     fn next_match(&mut self) -> Option<(usize, usize)> {
@@ -305,10 +375,10 @@ pub enum OsStrSearchStep {
 }
 
 impl<'a> OsStrPattern<'a> for OsStrItem {
-    type Searcher = OsStrItemRepSearcher<'a>;
+    type Searcher = OsStrItemSearcher<'a>;
 
     fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
-        OsStrItemRepSearcher {
+        OsStrItemSearcher {
             haystack: haystack.items(),
             finger: 0,
             needle: self,
@@ -316,13 +386,13 @@ impl<'a> OsStrPattern<'a> for OsStrItem {
     }
 }
 
-pub struct OsStrItemRepSearcher<'a> {
+pub struct OsStrItemSearcher<'a> {
     haystack: OsStrItems<'a>,
     finger: usize,
     needle: OsStrItem,
 }
 
-impl OsStrSearcher for OsStrItemRepSearcher<'_> {
+impl OsStrSearcher for OsStrItemSearcher<'_> {
     fn next(&mut self) -> OsStrSearchStep {
         let result = match self.haystack.next() {
             Some(item) if item == self.needle => {
@@ -339,7 +409,17 @@ impl OsStrSearcher for OsStrItemRepSearcher<'_> {
     }
 }
 
-pub trait OsStrMultiItemEq {
+mod os_str_multi_item_eq_sealed {
+    use super::OsStrItem;
+
+    pub trait Sealed {}
+    impl<F: FnMut(OsStrItem) -> bool> Sealed for F {}
+    impl<const N: usize> Sealed for [OsStrItem; N] {}
+    impl<const N: usize> Sealed for &[OsStrItem; N] {}
+    impl Sealed for &[OsStrItem] {}
+}
+
+pub trait OsStrMultiItemEq: os_str_multi_item_eq_sealed::Sealed {
     fn matches(&mut self, item: OsStrItem) -> bool;
 }
 
