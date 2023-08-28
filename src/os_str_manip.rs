@@ -407,8 +407,16 @@ impl<'a, C: OsStrMultiItemEq> OsStrPattern<'a> for C {
 pub struct OsStrSubstringSearcher<'a, 'b> {
     haystack: &'a OsStr,
     finger: usize,
-    needle: &'b OsStr,
-    needle_is_empty: bool,
+    details: OsStrSubstringSearcherImpl<'b>,
+}
+
+enum OsStrSubstringSearcherImpl<'a> {
+    NonEmptyNeedle {
+        needle: &'a OsStr,
+    },
+    EmptyNeedle {
+        finished: bool,
+    }
 }
 
 impl<'a, 'b> OsStrSubstringSearcher<'a, 'b> {
@@ -416,28 +424,50 @@ impl<'a, 'b> OsStrSubstringSearcher<'a, 'b> {
         Self {
             haystack,
             finger: 0,
-            needle,
-            needle_is_empty: needle.is_empty()
+            details: if needle.is_empty() {
+                OsStrSubstringSearcherImpl::EmptyNeedle {
+                    finished: false,
+                }
+            } else {
+                OsStrSubstringSearcherImpl::NonEmptyNeedle {needle}
+            }
         }
     }
 }
 
 impl<'a, 'b> OsStrSearcher for OsStrSubstringSearcher<'a, 'b> {
     fn next(&mut self) -> OsStrSearchStep {
-        let start = self.finger;
-        if self.haystack.len() - self.finger < self.needle.len() {
-            return OsStrSearchStep::Reject(start, self.haystack.len());
-        }
-        let mut needle_iter = self.needle.items();
-        let iter = self.haystack.items().skip(self.finger).zip(needle_iter.by_ref());
-        for (haystack_item, needle_item) in iter {
-            self.finger += 1;
-            if haystack_item != needle_item {
-                return OsStrSearchStep::Reject(start, self.finger);
+        match self.details {
+            OsStrSubstringSearcherImpl::EmptyNeedle {ref mut finished} => {
+                if *finished {
+                    OsStrSearchStep::Done
+                } else {
+                    let start = self.finger;
+                    if self.finger == self.haystack.len() {
+                        *finished = true;
+                    } else {
+                        self.finger += 1;
+                    }
+                    OsStrSearchStep::Match(start, start)
+                }
+            },
+            OsStrSubstringSearcherImpl::NonEmptyNeedle {needle} => {
+                let start = self.finger;
+                if self.haystack.len() - self.finger < needle.len() {
+                    return OsStrSearchStep::Reject(start, self.haystack.len());
+                }
+                let mut needle_iter = needle.items();
+                let iter = self.haystack.items().skip(self.finger).zip(needle_iter.by_ref());
+                for (haystack_item, needle_item) in iter {
+                    self.finger += 1;
+                    if haystack_item != needle_item {
+                        return OsStrSearchStep::Reject(start, self.finger);
+                    }
+                }
+                debug_assert!(needle_iter.next().is_none());
+                OsStrSearchStep::Match(start, self.finger)
             }
         }
-        debug_assert!(needle_iter.next().is_none());
-        OsStrSearchStep::Match(start, self.finger)
     }
 }
 
