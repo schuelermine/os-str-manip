@@ -371,7 +371,7 @@ pub struct OsStrMultiItemEqSearcher<'a, C: OsStrMultiItemEq> {
 
 impl<'a, C: OsStrMultiItemEq> OsStrMultiItemEqSearcher<'a, C> {
     fn new(haystack: OsStrItems<'a>, needle: C) -> Self {
-        OsStrMultiItemEqSearcher {
+        Self {
             haystack,
             finger: 0,
             needle,
@@ -413,7 +413,7 @@ pub struct OsStrSubstringSearcher<'a, 'b> {
 
 impl<'a, 'b> OsStrSubstringSearcher<'a, 'b> {
     fn new(haystack: &'a OsStr, needle: &'b OsStr) -> Self {
-        OsStrSubstringSearcher {
+        Self {
             haystack,
             finger: 0,
             needle,
@@ -424,7 +424,20 @@ impl<'a, 'b> OsStrSubstringSearcher<'a, 'b> {
 
 impl<'a, 'b> OsStrSearcher for OsStrSubstringSearcher<'a, 'b> {
     fn next(&mut self) -> OsStrSearchStep {
-        todo!()
+        let start = self.finger;
+        if self.haystack.len() - self.finger < self.needle.len() {
+            return OsStrSearchStep::Reject(start, self.haystack.len());
+        }
+        let mut needle_iter = self.needle.items();
+        let iter = self.haystack.items().skip(self.finger).zip(needle_iter.by_ref());
+        for (haystack_item, needle_item) in iter {
+            self.finger += 1;
+            if haystack_item != needle_item {
+                return OsStrSearchStep::Reject(start, self.finger);
+            }
+        }
+        debug_assert!(needle_iter.next().is_none());
+        OsStrSearchStep::Match(start, self.finger)
     }
 }
 
@@ -432,6 +445,6 @@ impl<'a, 'b> OsStrPattern<'a> for &'b OsStr {
     type Searcher = OsStrSubstringSearcher<'a, 'b>;
 
     fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
-        todo!()
+        Self::Searcher::new(haystack, self)
     }
 }
