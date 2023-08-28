@@ -411,12 +411,8 @@ pub struct OsStrSubstringSearcher<'a, 'b> {
 }
 
 enum OsStrSubstringSearcherImpl<'a> {
-    NonEmptyNeedle {
-        needle: &'a OsStr,
-    },
-    EmptyNeedle {
-        finished: bool,
-    }
+    NonEmptyNeedle { needle: &'a OsStr },
+    EmptyNeedle { finished: bool },
 }
 
 impl<'a, 'b> OsStrSubstringSearcher<'a, 'b> {
@@ -425,12 +421,10 @@ impl<'a, 'b> OsStrSubstringSearcher<'a, 'b> {
             haystack,
             finger: 0,
             details: if needle.is_empty() {
-                OsStrSubstringSearcherImpl::EmptyNeedle {
-                    finished: false,
-                }
+                OsStrSubstringSearcherImpl::EmptyNeedle { finished: false }
             } else {
-                OsStrSubstringSearcherImpl::NonEmptyNeedle {needle}
-            }
+                OsStrSubstringSearcherImpl::NonEmptyNeedle { needle }
+            },
         }
     }
 }
@@ -438,7 +432,7 @@ impl<'a, 'b> OsStrSubstringSearcher<'a, 'b> {
 impl<'a, 'b> OsStrSearcher for OsStrSubstringSearcher<'a, 'b> {
     fn next(&mut self) -> OsStrSearchStep {
         match self.details {
-            OsStrSubstringSearcherImpl::EmptyNeedle {ref mut finished} => {
+            OsStrSubstringSearcherImpl::EmptyNeedle { ref mut finished } => {
                 if *finished {
                     OsStrSearchStep::Done
                 } else {
@@ -450,14 +444,18 @@ impl<'a, 'b> OsStrSearcher for OsStrSubstringSearcher<'a, 'b> {
                     }
                     OsStrSearchStep::Match(start, start)
                 }
-            },
-            OsStrSubstringSearcherImpl::NonEmptyNeedle {needle} => {
+            }
+            OsStrSubstringSearcherImpl::NonEmptyNeedle { needle } => {
                 let start = self.finger;
                 if self.haystack.len() - self.finger < needle.len() {
                     return OsStrSearchStep::Reject(start, self.haystack.len());
                 }
                 let mut needle_iter = needle.items();
-                let iter = self.haystack.items().skip(self.finger).zip(needle_iter.by_ref());
+                let iter = self
+                    .haystack
+                    .items()
+                    .skip(self.finger)
+                    .zip(needle_iter.by_ref());
                 for (haystack_item, needle_item) in iter {
                     self.finger += 1;
                     if haystack_item != needle_item {
