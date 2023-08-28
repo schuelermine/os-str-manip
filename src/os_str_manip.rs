@@ -35,11 +35,11 @@ type OsStrItem = PlatformSpecificType;
 
 type OsStrVec = Vec<OsStrItem>;
 
-pub trait OsStrItemExt {
+pub trait OsStringFromItem {
     fn to_os_string(self) -> OsString;
 }
 
-impl OsStrItemExt for OsStrItem {
+impl OsStringFromItem for OsStrItem {
     fn to_os_string(self) -> OsString {
         std::iter::once(self).to_os_string()
     }
@@ -182,7 +182,7 @@ impl OsStrIndex for usize {
     }
 }
 
-pub trait OsStrItemsIter: Iterator<Item = OsStrItem> + Sized {
+pub trait OsStringFromIter: Iterator<Item = OsStrItem> + Sized {
     #[cfg(any(target_os = "wasi", target_family = "unix"))]
     fn to_os_string(self) -> OsString {
         OsStr::from_bytes(&self.collect::<OsStrVec>()).to_os_string()
@@ -193,7 +193,7 @@ pub trait OsStrItemsIter: Iterator<Item = OsStrItem> + Sized {
     }
 }
 
-impl<T: Iterator<Item = OsStrItem>> OsStrItemsIter for T {}
+impl<T: Iterator<Item = OsStrItem>> OsStringFromIter for T {}
 
 #[cfg(any(target_os = "wasi", target_family = "unix"))]
 #[derive(Clone)]
@@ -316,12 +316,15 @@ impl OsStrSearcher for OsStrItemRepSearcher<'_> {
     fn next(&mut self) -> OsStrSearchStep {
         let result = match self.haystack.next() {
             Some(item) if item == self.needle => {
+                self.finger += 1;
                 OsStrSearchStep::Match(self.finger, self.finger + 1)
             }
-            Some(_) => OsStrSearchStep::Reject(self.finger, self.finger + 1),
+            Some(_) => {
+                self.finger += 1;
+                OsStrSearchStep::Reject(self.finger, self.finger + 1)
+            }
             None => OsStrSearchStep::Done,
         };
-        self.finger += 1;
         result
     }
 }
@@ -374,12 +377,15 @@ impl<C: OsStrMultiItemEq> OsStrSearcher for OsStrMultiItemEqSearcher<'_, C> {
     fn next(&mut self) -> OsStrSearchStep {
         let result = match self.haystack.next() {
             Some(item) if self.needle.matches(item) => {
+                self.finger += 1;
                 OsStrSearchStep::Match(self.finger, self.finger + 1)
             }
-            Some(_) => OsStrSearchStep::Reject(self.finger, self.finger + 1),
+            Some(_) => {
+                self.finger += 1;
+                OsStrSearchStep::Reject(self.finger, self.finger + 1)
+            }
             None => OsStrSearchStep::Done,
         };
-        self.finger += 1;
         result
     }
 }
@@ -389,5 +395,37 @@ impl<'a, C: OsStrMultiItemEq> OsStrPattern<'a> for C {
 
     fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
         Self::Searcher::new(haystack.items(), self)
+    }
+}
+
+pub struct OsStrSubstringSearcher<'a, 'b> {
+    haystack: &'a OsStr,
+    finger: usize,
+    needle: &'b OsStr,
+    needle_is_empty: bool,
+}
+
+impl<'a, 'b> OsStrSubstringSearcher<'a, 'b> {
+    fn new(haystack: &'a OsStr, needle: &'b OsStr) -> Self {
+        OsStrSubstringSearcher {
+            haystack,
+            finger: 0,
+            needle,
+            needle_is_empty: needle.is_empty()
+        }
+    }
+}
+
+impl<'a, 'b> OsStrSearcher for OsStrSubstringSearcher<'a, 'b> {
+    fn next(&mut self) -> OsStrSearchStep {
+        todo!()
+    }
+}
+
+impl<'a, 'b> OsStrPattern<'a> for &'b OsStr {
+    type Searcher = OsStrSubstringSearcher<'a, 'b>;
+
+    fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
+        todo!()
     }
 }
