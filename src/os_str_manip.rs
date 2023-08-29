@@ -255,11 +255,11 @@ pub trait OsStringFromIter:
 impl<T: Iterator<Item = OsStrItem>> OsStringFromIter for T {}
 
 #[cfg(any(target_os = "wasi", target_family = "unix"))]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct OsStrItems<'a>(std::iter::Copied<std::slice::Iter<'a, OsStrItem>>);
 
 #[cfg(target_family = "windows")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct OsStrItems<'a>(std::os::windows::ffi::EncodeWide<'a>);
 
 impl<'a> Iterator for OsStrItems<'a> {
@@ -368,6 +368,7 @@ pub trait OsStrSearcher: os_str_searcher_sealed::Sealed {
     }
 }
 
+#[derive(Clone, Debug)]
 pub enum OsStrSearchStep {
     Match(usize, usize),
     Reject(usize, usize),
@@ -386,6 +387,7 @@ impl<'a> OsStrPattern<'a> for OsStrItem {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct OsStrItemSearcher<'a> {
     haystack: OsStrItems<'a>,
     finger: usize,
@@ -447,6 +449,7 @@ impl OsStrMultiItemEq for &[OsStrItem] {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct OsStrMultiItemEqSearcher<'a, C: OsStrMultiItemEq> {
     haystack: OsStrItems<'a>,
     finger: usize,
@@ -488,12 +491,14 @@ impl<'a, C: OsStrMultiItemEq> OsStrPattern<'a> for C {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct OsStrSubstringSearcher<'a, 'b> {
     haystack: &'a OsStr,
     finger: usize,
     details: OsStrSubstringSearcherImpl<'b>,
 }
 
+#[derive(Clone, Debug)]
 enum OsStrSubstringSearcherImpl<'a> {
     NonEmptyNeedle { needle: &'a OsStr },
     EmptyNeedle { finished: bool },
