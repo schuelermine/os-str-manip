@@ -15,13 +15,8 @@ use std::os::wasi::ffi::OsStrExt;
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
 
 #[cfg(doc)]
-mod platform_specific_type_hidden {
-    #[derive(Clone, Copy, PartialEq, Eq)]
-    pub struct PlatformSpecificType;
-}
-
-#[cfg(doc)]
-use platform_specific_type_hidden::PlatformSpecificType;
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct PlatformSpecificType;
 
 #[cfg(not(doc))]
 #[cfg(any(target_os = "wasi", target_family = "unix"))]
@@ -294,6 +289,7 @@ mod os_str_pattern_sealed {
     impl Sealed for super::OsStrItem {}
     impl<C: super::OsStrMultiItemEq> Sealed for C {}
     impl Sealed for &std::ffi::OsStr {}
+    impl Sealed for &std::ffi::OsString {}
 }
 
 pub trait OsStrPattern<'a>: os_str_pattern_sealed::Sealed + Sized {
@@ -560,6 +556,14 @@ impl<'a, 'b> OsStrSearcher for OsStrSubstringSearcher<'a, 'b> {
 }
 
 impl<'a, 'b> OsStrPattern<'a> for &'b OsStr {
+    type Searcher = OsStrSubstringSearcher<'a, 'b>;
+
+    fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
+        Self::Searcher::new(haystack, self)
+    }
+}
+
+impl<'a, 'b> OsStrPattern<'a> for &'b OsString {
     type Searcher = OsStrSubstringSearcher<'a, 'b>;
 
     fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher {
