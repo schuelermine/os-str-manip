@@ -1,7 +1,3 @@
-#![cfg_attr(
-    feature = "generic_map_raw",
-    feature(return_position_impl_trait_in_trait)
-)]
 #![cfg_attr(feature = "unchecked_index", feature(unchecked_math))]
 
 //! Tools for manipulating [`std::ffi::OsStr`]s and [`std::ffi::OsString`]s.

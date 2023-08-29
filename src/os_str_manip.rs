@@ -15,9 +15,13 @@ use std::os::wasi::ffi::OsStrExt;
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
 
 #[cfg(doc)]
-#[doc(hidden)]
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub struct PlatformSpecificType;
+mod platform_specific_type_hidden {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub struct PlatformSpecificType;
+}
+
+#[cfg(doc)]
+use platform_specific_type_hidden::PlatformSpecificType;
 
 #[cfg(not(doc))]
 #[cfg(any(target_os = "wasi", target_family = "unix"))]
