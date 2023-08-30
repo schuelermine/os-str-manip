@@ -3,6 +3,7 @@ name = "os-str-manip"
 version = "0.0.1"
 edition = "2021"
 rust-version = "1.56.1"
+description = "Cross-platform API for manipulating OsStr"
 repository = "https://github.com/schuelermine/os-str-manip"
 license = "MIT"
 keywords = ["cross-platform", "ffi"]
