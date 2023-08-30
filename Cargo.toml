@@ -3,5 +3,8 @@ name = "os-str-manip"
 version = "0.1.0"
 edition = "2021"
 
+[package.metadata.docs.rs]
+features = ["unchecked_index"]
+
 [features]
 unchecked_index = []

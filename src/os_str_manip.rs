@@ -14,6 +14,14 @@ use std::os::wasi::ffi::OsStrExt;
 #[cfg(target_family = "windows")]
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
 
+/// This type is used throughout this crate’s documentation to refer
+/// to the items an [`OsStr`] can be decomposed into and constructed from
+///
+/// On Windows, this is a [`u16`]
+///
+/// On Unix and WASI, this is a [`u8`]
+///
+/// [`OsStr`]: std::ffi::OsStr
 #[cfg(doc)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct PlatformSpecificType;
@@ -40,6 +48,8 @@ mod os_string_from_item_sealed {
 }
 
 /// Create an [`OsString`] from a single OS string item
+///
+/// This trait is sealed, it cannot be implemented for any additional types
 pub trait OsStringFromItem: os_string_from_item_sealed::Sealed {
     /// Create an [`OsString`] from a single OS string item
     fn to_os_string(self) -> OsString;
@@ -69,15 +79,64 @@ mod os_str_manip_sealed {
     impl Sealed for std::ffi::OsStr {}
 }
 
+/// Various string manipulation methods for [`OsStr`], and, by [`Deref`], [`OsString`]
+///
+/// This trait is sealed, it cannot be implemented for any additional types
+///
+/// [`Deref`]: std::ops::Deref
 pub trait OsStrManip: os_str_manip_sealed::Sealed {
+    /// Get an iterator over the items a string consists of
     fn items(&self) -> OsStrItems<'_>;
-    fn index(&self, idx: impl OsStrIndex) -> OsString;
+    /// Construct a substring or get an item by index or range
+    ///
+    /// Note that when constructing a substring, this method constructs
+    /// a new, owned, [`OsString`]. This is due to platform limitations.
+    ///
+    /// # Panics
+    ///
+    /// When `idx` is out of bounds of the string.
+    /// For ranges, this means that any component is out of bounds.
+    ///
+    /// When `idx` is a range and its (inclusive) lower bound is above its
+    /// (inclusive) upper bound.
+    fn index<T: OsStrIndex>(&self, idx: T) -> T::Output;
     #[cfg(feature = "unchecked_index")]
+    /// This method requires the feature `unchecked_index` and nightly rust due to
+    /// relying on unstable features
+    ///
+    /// Like [`index`], but instead of panicking, it causes undefined behavior
+    ///
+    /// Note that when constructing a substring, this method constructs
+    /// a new, owned, [`OsString`]. This is due to platform limitations.
+    ///
+    /// # Safety
+    ///
+    /// It is **required**:
+    /// - If `idx: Range<usize>`:
+    ///     - `idx.start <= idx.end`
+    ///     - `idx.start < self.len()`
+    ///     - `idx.end <= self.len()`
+    /// - If `idx: RangeFrom<usize>` that `idx.start < self.len()`
+    /// - If `idx: RangeInclusive<usize>`:
+    ///     - `idx.start() <= idx.end() - 1`
+    ///     - `idx.start() < self.len()`
+    ///     - `idx.end() < self.len()`
+    /// - If `idx: RangeTo<usize>` that `idx.end <= self.len()`
+    /// - If `idx: RangeToInclusive<usize>` that `idx.end < self.len()`
+    /// - If `idx: usize` that `idx < `self.len()`
+    /// - If `idx: RangeFull` then nothing is required
+    ///
+    /// [`index`]: OsStrManip::index
     unsafe fn index_unchecked(&self, idx: impl OsStrIndex) -> OsString;
+    /// Check if an [`OsStr`] starts with a pattern
     fn starts_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool;
+    /// Check if an [`OsStr`] string ends with a pattern
     fn ends_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool;
+    /// Check if an [`OsStr`] string contains a pattern
     fn contains<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool;
+    /// Remove the prefix matching a pattern from the start of an [`OsStr`]
     fn strip_prefix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString>;
+    /// Remove the suffix matching a pattern from the end of an [`OsStr`]
     fn strip_suffix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString>;
 }
 
@@ -96,7 +155,7 @@ impl OsStrManip for OsStr {
     fn items(&self) -> OsStrItems<'_> {
         unreachable!()
     }
-    fn index(&self, idx: impl OsStrIndex) -> OsString {
+    fn index<T: OsStrIndex>(&self, idx: T) -> T::Output {
         idx.index_of(self)
     }
     #[cfg(feature = "unchecked_index")]
@@ -130,14 +189,34 @@ mod os_str_index_sealed {
     impl Sealed for std::ops::RangeToInclusive<usize> {}
 }
 
+/// Get a part of an `&`[`OsStr`]
+///
+/// This trait is used by the [`OsStrManip::index`] function,
+/// see there for more information
+///
+/// This trait is sealed, it cannot be implemented for any additional types
 pub trait OsStrIndex {
-    fn index_of(self, source: &OsStr) -> OsString;
+    type Output;
+
+    /// Get a part of an `&`[`OsStr`]
+    ///
+    /// For panic information see [`OsStrManip::index`]
+    fn index_of(self, source: &OsStr) -> Self::Output;
+    /// This method requires the feature `unchecked_index` and nightly rust due to
+    /// relying on unstable features
+    ///
+    /// Get a part of an `&`[`OsStr`], but cause undefined behavior
+    /// on out-of-bounds indices
+    ///
+    /// For exact safety requirements see [`OsStrManip::index_unchecked`]
     #[cfg(feature = "unchecked_index")]
-    unsafe fn index_of_unchecked(self, source: &OsStr) -> OsString;
+    unsafe fn index_of_unchecked(self, source: &OsStr) -> Self::Output;
 }
 
 impl OsStrIndex for std::ops::Range<usize> {
-    fn index_of(self, source: &OsStr) -> OsString {
+    type Output = OsString;
+
+    fn index_of(self, source: &OsStr) -> Self::Output {
         assert!(self.start <= self.end);
         source
             .items()
@@ -146,7 +225,7 @@ impl OsStrIndex for std::ops::Range<usize> {
             .to_os_string()
     }
     #[cfg(feature = "unchecked_index")]
-    unsafe fn index_of_unchecked(self, source: &OsStr) -> OsString {
+    unsafe fn index_of_unchecked(self, source: &OsStr) -> Self::Output {
         source
             .items()
             .skip(self.start)
@@ -156,59 +235,69 @@ impl OsStrIndex for std::ops::Range<usize> {
 }
 
 impl OsStrIndex for std::ops::RangeFrom<usize> {
-    fn index_of(self, source: &OsStr) -> OsString {
+    type Output = OsString;
+
+    fn index_of(self, source: &OsStr) -> Self::Output {
         source.items().skip(self.start).to_os_string()
     }
     #[cfg(feature = "unchecked_index")]
-    unsafe fn index_of_unchecked(self, source: &OsStr) -> OsString {
+    unsafe fn index_of_unchecked(self, source: &OsStr) -> Self::Output {
         source.items().skip(self.start).to_os_string()
     }
 }
 
 impl OsStrIndex for std::ops::RangeFull {
-    fn index_of(self, source: &OsStr) -> OsString {
+    type Output = OsString;
+
+    fn index_of(self, source: &OsStr) -> Self::Output {
         source.to_os_string()
     }
     #[cfg(feature = "unchecked_index")]
-    unsafe fn index_of_unchecked(self, source: &OsStr) -> OsString {
+    unsafe fn index_of_unchecked(self, source: &OsStr) -> Self::Output {
         source.to_os_string()
     }
 }
 
 impl OsStrIndex for std::ops::RangeInclusive<usize> {
-    fn index_of(self, source: &OsStr) -> OsString {
+    type Output = OsString;
+
+    fn index_of(self, source: &OsStr) -> Self::Output {
         source
             .items()
             .skip(*self.start())
-            .take(self.end() + 1)
+            .take(self.end() - self.start() + 1)
             .to_os_string()
     }
     #[cfg(feature = "unchecked_index")]
-    unsafe fn index_of_unchecked(self, source: &OsStr) -> OsString {
+    unsafe fn index_of_unchecked(self, source: &OsStr) -> Self::Output {
         source
             .items()
             .skip(*self.start())
-            .take(self.end().unchecked_add(1))
+            .take(self.end().unchecked_sub(*self.start()).unchecked_add(1))
             .to_os_string()
     }
 }
 
 impl OsStrIndex for std::ops::RangeTo<usize> {
-    fn index_of(self, source: &OsStr) -> OsString {
+    type Output = OsString;
+
+    fn index_of(self, source: &OsStr) -> Self::Output {
         source.items().take(self.end).to_os_string()
     }
     #[cfg(feature = "unchecked_index")]
-    unsafe fn index_of_unchecked(self, source: &OsStr) -> OsString {
+    unsafe fn index_of_unchecked(self, source: &OsStr) -> Self::Output {
         source.items().take(self.end).to_os_string()
     }
 }
 
 impl OsStrIndex for std::ops::RangeToInclusive<usize> {
-    fn index_of(self, source: &OsStr) -> OsString {
+    type Output = OsString;
+
+    fn index_of(self, source: &OsStr) -> Self::Output {
         source.items().take(self.end + 1).to_os_string()
     }
     #[cfg(feature = "unchecked_index")]
-    unsafe fn index_of_unchecked(self, source: &OsStr) -> OsString {
+    unsafe fn index_of_unchecked(self, source: &OsStr) -> Self::Output {
         source
             .items()
             .take(self.end.unckeched_add(1))
@@ -217,12 +306,14 @@ impl OsStrIndex for std::ops::RangeToInclusive<usize> {
 }
 
 impl OsStrIndex for usize {
-    fn index_of(self, source: &OsStr) -> OsString {
-        source.items().nth(self).unwrap().to_os_string()
+    type Output = OsStrItem;
+
+    fn index_of(self, source: &OsStr) -> Self::Output {
+        source.items().nth(self).unwrap()
     }
     #[cfg(feature = "unchecked_index")]
-    unsafe fn index_of_unchecked(self, source: &OsStr) -> OsString {
-        source.items().nth(self).unwrap_unchecked().to_os_string()
+    unsafe fn index_of_unchecked(self, source: &OsStr) -> Self::Output {
+        source.items().nth(self).unwrap_unchecked()
     }
 }
 
@@ -233,9 +324,13 @@ mod os_string_from_iter_sealed {
     impl<T: Iterator<Item = OsStrItem>> Sealed for T {}
 }
 
+/// Collect an iterator over items of an [`OsStr`],into an new, owned, [`OsString`]
+///
+/// This trait is sealed, it cannot be implemented for any additional types
 pub trait OsStringFromIter:
     Iterator<Item = OsStrItem> + os_string_from_iter_sealed::Sealed + Sized
 {
+    /// Collect an iterator over items of an [`OsStr`] into an new, owned, [`OsString`]
     #[cfg(not(doc))]
     #[cfg(any(target_os = "wasi", target_family = "unix"))]
     fn to_os_string(self) -> OsString {
@@ -254,30 +349,30 @@ pub trait OsStringFromIter:
 
 impl<T: Iterator<Item = OsStrItem>> OsStringFromIter for T {}
 
+#[cfg(not(doc))]
 #[cfg(any(target_os = "wasi", target_family = "unix"))]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct OsStrItems<'a>(std::iter::Copied<std::slice::Iter<'a, OsStrItem>>);
 
 #[cfg(target_family = "windows")]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct OsStrItems<'a>(std::os::windows::ffi::EncodeWide<'a>);
+
+/// Iterator over items of an [`OsStr`], obtained by [`OsStrManip::items`]
+#[cfg(doc)]
+#[derive(Clone)]
+pub struct OsStrItems<'a>(std::iter::Once<OsStrItem>, &'a ());
 
 impl<'a> Iterator for OsStrItems<'a> {
     type Item = OsStrItem;
 
-    #[cfg(not(doc))]
     #[cfg(any(target_os = "wasi", target_family = "unix"))]
     fn next(&mut self) -> Option<Self::Item> {
         Some(self.0.next()?)
     }
-    #[cfg(not(doc))]
     #[cfg(target_family = "windows")]
     fn next(&mut self) -> Option<Self::Item> {
         Some(self.0.next()?)
-    }
-    #[cfg(doc)]
-    fn next(&mut self) -> Option<Self::Item> {
-        unreachable!()
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.0.size_hint()
@@ -292,20 +387,42 @@ mod os_str_pattern_sealed {
     impl Sealed for &std::ffi::OsString {}
 }
 
+/// A pattern for searching in [`OsStr`]s
+///
+/// This is similar to [`std::str::pattern::Pattern`]
+///
+/// Each pattern has a [`Searcher`] type, which handles the state
+/// of the search process, which can be constructed with a “haystack”,
+/// or `&`[`OsStr`] to search in, using [`into_searcher`]
+///
+/// The meanings of the implementers are:
+/// - Searching for an item of an [`OsStr`] checks for any occurrence of the item
+/// - Searching for a slice or array of items checks for any occurrence of any of the items
+/// - Searching for a function taking items and returning booleans checks for any items that match the predicate
+/// - Searching for an `&`[`OsStr`] or `&`[`OsString`] searches for any substring occurrence
+///
+/// This trait is sealed, it cannot be implemented for any additional types
+///
+/// [`Searcher`]: OsStrPattern::Searcher
+/// [`into_searcher`]: OsStrPattern::into_searcher
 pub trait OsStrPattern<'a>: os_str_pattern_sealed::Sealed + Sized {
     type Searcher: OsStrSearcher;
 
+    /// Construct the searcher for a given `&`[`OsStr`] to search
     fn into_searcher(self, haystack: &'a OsStr) -> Self::Searcher;
 
+    /// Check if an [`OsStr`] contains a pattern
     fn is_contained_in(self, haystack: &'a OsStr) -> bool {
         self.into_searcher(haystack).next_match().is_some()
     }
+    /// Check if an [`OsStr`] starts with a pattern
     fn is_prefix_of(self, haystack: &'a OsStr) -> bool {
         matches!(
             self.into_searcher(haystack).next(),
             OsStrSearchStep::Match(0, _)
         )
     }
+    /// Check if an [`OsStr`] ends with a pattern
     fn is_suffix_of(self, haystack: &'a OsStr) -> bool {
         let mut searcher = self.into_searcher(haystack);
         loop {
@@ -316,6 +433,7 @@ pub trait OsStrPattern<'a>: os_str_pattern_sealed::Sealed + Sized {
             }
         }
     }
+    /// Remove the prefix matching a pattern from the start of an [`OsStr`]
     fn strip_prefix_of(self, haystack: &'a OsStr) -> Option<OsString> {
         if let OsStrSearchStep::Match(start, len) = self.into_searcher(haystack).next() {
             debug_assert_eq!(start, 0, "OsStrSearcher::next().0 must be 0 on first call");
@@ -324,6 +442,7 @@ pub trait OsStrPattern<'a>: os_str_pattern_sealed::Sealed + Sized {
             None
         }
     }
+    /// Remove the suffix matching a pattern from the end of an [`OsStr`]
     fn strip_suffix_of(self, haystack: &'a OsStr) -> Option<OsString> {
         let mut searcher = self.into_searcher(haystack);
         loop {
@@ -345,9 +464,19 @@ mod os_str_searcher_sealed {
     impl Sealed for super::OsStrSubstringSearcher<'_, '_> {}
 }
 
+/// A searcher that encapsulates the state of the search for
+/// an [`OsStrPattern`]
+///
+/// Calling [`next`] repeatedly will produce adjacent ranges
+/// of substrings that either match the pattern or cannot be part of a match,
+/// followed by [`OsStrSearchStep::Done`] when the `&`[`OsStr`]’s end is reached
+///
+/// [`next`]: OsStrSearcher::next
 pub trait OsStrSearcher: os_str_searcher_sealed::Sealed {
+    /// Get the next fully processed substring range and its judgement
     fn next(&mut self) -> OsStrSearchStep;
 
+    /// Get the next fully processed substring range that was judged to be a match
     fn next_match(&mut self) -> Option<(usize, usize)> {
         loop {
             match self.next() {
@@ -357,6 +486,7 @@ pub trait OsStrSearcher: os_str_searcher_sealed::Sealed {
             }
         }
     }
+    /// Get the next fully processed substring range that was rejected
     fn next_reject(&mut self) -> Option<(usize, usize)> {
         loop {
             match self.next() {
@@ -368,10 +498,16 @@ pub trait OsStrSearcher: os_str_searcher_sealed::Sealed {
     }
 }
 
+/// A search step produced by [`OsStrSearcher::next`]
+///
+/// The indices here are left inclusive, right exclusive
 #[derive(Clone, Debug)]
 pub enum OsStrSearchStep {
+    /// A subrange was identified as a match
     Match(usize, usize),
+    /// A subrange was ruled out as being part of a match
     Reject(usize, usize),
+    /// The searched `&`[`OsStr`] was exhausted
     Done,
 }
 
@@ -387,7 +523,7 @@ impl<'a> OsStrPattern<'a> for OsStrItem {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct OsStrItemSearcher<'a> {
     haystack: OsStrItems<'a>,
     finger: usize,
@@ -449,7 +585,7 @@ impl OsStrMultiItemEq for &[OsStrItem] {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct OsStrMultiItemEqSearcher<'a, C: OsStrMultiItemEq> {
     haystack: OsStrItems<'a>,
     finger: usize,
