@@ -118,7 +118,7 @@ pub trait OsStrManip: os_str_manip_sealed::Sealed {
     ///     - `idx.end <= self.len()`
     /// - If `idx: RangeFrom<usize>` that `idx.start < self.len()`
     /// - If `idx: RangeInclusive<usize>`:
-    ///     - `idx.start() <= idx.end() - 1`
+    ///     - `idx.start() <= idx.end() + 1`
     ///     - `idx.start() < self.len()`
     ///     - `idx.end() < self.len()`
     /// - If `idx: RangeTo<usize>` that `idx.end <= self.len()`
@@ -265,7 +265,7 @@ impl OsStrIndex for std::ops::RangeInclusive<usize> {
         source
             .items()
             .skip(*self.start())
-            .take(self.end() - self.start() + 1)
+            .take(self.end() + 1 - self.start())
             .to_os_string()
     }
     #[cfg(feature = "unchecked_index")]
@@ -273,7 +273,7 @@ impl OsStrIndex for std::ops::RangeInclusive<usize> {
         source
             .items()
             .skip(*self.start())
-            .take(self.end().unchecked_sub(*self.start()).unchecked_add(1))
+            .take(self.end().unchecked_add(1).unchecked_sub(*self.start()))
             .to_os_string()
     }
 }
