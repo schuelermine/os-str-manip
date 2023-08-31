@@ -130,7 +130,7 @@ pub trait OsStrManip: os_str_manip_sealed::Sealed {
     /// - If `idx: usize` that `idx < length`
     /// - If `idx: RangeFull` then nothing is required
     ///
-    /// …where `length` is the length of `self` in [`OsStrItem`]s
+    /// …where `length` is the length of `self` in items
     /// as yielded by [`items`], and *not* as reported by [`OsStr::len`]
     ///
     /// [`index`]: OsStrManip::index
