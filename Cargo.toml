@@ -15,3 +15,6 @@ features = ["unchecked_index"]
 
 [features]
 unchecked_index = []
+
+[dev-dependencies]
+proptest = "1.2.0"
