@@ -506,7 +506,7 @@ mod os_str_pattern_sealed {
 ///
 /// Each pattern has a [`Searcher`] type, which handles the state
 /// of the search process, which can be constructed with a “haystack”,
-/// or `&`[`OsStr`] to search in, using [`into_searcher`]
+/// or `&`[`OsStr`], to search in, using [`into_searcher`]
 ///
 /// The meanings of the implementers are:
 /// - Searching for an item of an [`OsStr`] checks for any occurrence of the item
@@ -582,7 +582,7 @@ mod os_str_searcher_sealed {
 ///
 /// Calling [`next`] repeatedly will produce adjacent ranges
 /// of substrings that either match the pattern or cannot be part of a match,
-/// followed by [`OsStrSearchStep::Done`] when the `&`[`OsStr`]’s end is reached
+/// followed by [`OsStrSearchStep::Done`] when the [`OsStr`]’s end is reached
 ///
 /// [`next`]: OsStrSearcher::next
 pub trait OsStrSearcher: os_str_searcher_sealed::Sealed {
@@ -620,7 +620,7 @@ pub enum OsStrSearchStep {
     Match(usize, usize),
     /// A subrange was ruled out as being part of a match
     Reject(usize, usize),
-    /// The searched `&`[`OsStr`] was exhausted
+    /// The searched [`OsStr`] was exhausted
     Done,
 }
 
