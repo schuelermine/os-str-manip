@@ -98,7 +98,7 @@ pub trait OsStrManip: os_str_manip_sealed::Sealed {
     /// (For ranges, this means that any component is out of bounds)
     ///
     /// When `idx` is a range and its (inclusive) lower bound is above its
-    /// (inclusive) upper bound
+    /// (exclusive) upper bound
     fn index<T: OsStrIndex>(&self, idx: T) -> T::Output;
     #[cfg(feature = "unchecked_index")]
     /// This method requires the feature `unchecked_index` and nightly rust due to
