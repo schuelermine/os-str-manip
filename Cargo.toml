@@ -1,6 +1,6 @@
 [package]
 name = "os-str-manip"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 rust-version = "1.56.1"
 description = "Cross-platform API for manipulating OsStr"
