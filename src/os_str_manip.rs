@@ -94,11 +94,11 @@ pub trait OsStrManip: os_str_manip_sealed::Sealed {
     ///
     /// # Panics
     ///
-    /// When `idx` is out of bounds of the string.
-    /// For ranges, this means that any component is out of bounds.
+    /// When `idx` is out of bounds of the string
+    /// (For ranges, this means that any component is out of bounds)
     ///
     /// When `idx` is a range and its (inclusive) lower bound is above its
-    /// (inclusive) upper bound.
+    /// (inclusive) upper bound
     fn index<T: OsStrIndex>(&self, idx: T) -> T::Output;
     #[cfg(feature = "unchecked_index")]
     /// This method requires the feature `unchecked_index` and nightly rust due to
@@ -114,13 +114,13 @@ pub trait OsStrManip: os_str_manip_sealed::Sealed {
     /// It is **required**:
     /// - If `idx: Range<usize>`:
     ///     - `idx.start <= idx.end`
-    ///     - `idx.start < self.len()`
+    ///     - `idx.start <= self.len()`
     ///     - `idx.end <= self.len()`
-    /// - If `idx: RangeFrom<usize>` that `idx.start < self.len()`
+    /// - If `idx: RangeFrom<usize>` that `idx.start <= self.len()`
     /// - If `idx: RangeInclusive<usize>`:
-    ///     - `idx.start() <= idx.end() + 1`
-    ///     - `idx.start() < self.len()`
-    ///     - `idx.end() < self.len()`
+    ///     - `*idx.start() <= *idx.end() + 1`
+    ///     - `*idx.start() <= self.len()`
+    ///     - `*idx.end() < self.len()`
     /// - If `idx: RangeTo<usize>` that `idx.end <= self.len()`
     /// - If `idx: RangeToInclusive<usize>` that `idx.end < self.len()`
     /// - If `idx: usize` that `idx < self.len()`
@@ -313,6 +313,8 @@ impl OsStrIndex for std::ops::Range<usize> {
 
     fn index_of(self, source: &OsStr) -> Self::Output {
         assert!(self.start <= self.end);
+        assert!(self.start <= source.len());
+        assert!(self.end <= source.len());
         source
             .items()
             .skip(self.start)
@@ -321,6 +323,9 @@ impl OsStrIndex for std::ops::Range<usize> {
     }
     #[cfg(feature = "unchecked_index")]
     unsafe fn index_of_unchecked(self, source: &OsStr) -> Self::Output {
+        debug_assert!(self.start <= self.end);
+        debug_assert!(self.start <= source.len());
+        debug_assert!(self.end <= source.len());
         source
             .items()
             .skip(self.start)
@@ -333,10 +338,12 @@ impl OsStrIndex for std::ops::RangeFrom<usize> {
     type Output = OsString;
 
     fn index_of(self, source: &OsStr) -> Self::Output {
+        assert!(self.start <= source.len());
         source.items().skip(self.start).to_os_string()
     }
     #[cfg(feature = "unchecked_index")]
     unsafe fn index_of_unchecked(self, source: &OsStr) -> Self::Output {
+        debug_assert!(self.start <= source.len());
         source.items().skip(self.start).to_os_string()
     }
 }
@@ -357,6 +364,9 @@ impl OsStrIndex for std::ops::RangeInclusive<usize> {
     type Output = OsString;
 
     fn index_of(self, source: &OsStr) -> Self::Output {
+        assert!(*self.start() <= *self.end() + 1);
+        assert!(*self.start() <= source.len());
+        assert!(*self.end() < source.len());
         source
             .items()
             .skip(*self.start())
@@ -365,6 +375,9 @@ impl OsStrIndex for std::ops::RangeInclusive<usize> {
     }
     #[cfg(feature = "unchecked_index")]
     unsafe fn index_of_unchecked(self, source: &OsStr) -> Self::Output {
+        debug_assert!(*self.start() <= *self.end() + 1);
+        debug_assert!(*self.start() <= source.len());
+        debug_assert!(*self.end() < source.len());
         source
             .items()
             .skip(*self.start())
@@ -377,10 +390,12 @@ impl OsStrIndex for std::ops::RangeTo<usize> {
     type Output = OsString;
 
     fn index_of(self, source: &OsStr) -> Self::Output {
+        assert!(self.end <= source.len());
         source.items().take(self.end).to_os_string()
     }
     #[cfg(feature = "unchecked_index")]
     unsafe fn index_of_unchecked(self, source: &OsStr) -> Self::Output {
+        debug_assert!(self.end <= source.len());
         source.items().take(self.end).to_os_string()
     }
 }
@@ -389,10 +404,12 @@ impl OsStrIndex for std::ops::RangeToInclusive<usize> {
     type Output = OsString;
 
     fn index_of(self, source: &OsStr) -> Self::Output {
+        assert!(self.end < source.len());
         source.items().take(self.end + 1).to_os_string()
     }
     #[cfg(feature = "unchecked_index")]
     unsafe fn index_of_unchecked(self, source: &OsStr) -> Self::Output {
+        debug_assert!(self.end < source.len());
         source
             .items()
             .take(self.end.unckeched_add(1))
@@ -404,10 +421,12 @@ impl OsStrIndex for usize {
     type Output = OsStrItem;
 
     fn index_of(self, source: &OsStr) -> Self::Output {
+        assert!(self < source.len());
         source.items().nth(self).unwrap()
     }
     #[cfg(feature = "unchecked_index")]
     unsafe fn index_of_unchecked(self, source: &OsStr) -> Self::Output {
+        debug_assert!(self < source.len());
         source.items().nth(self).unwrap_unchecked()
     }
 }
