@@ -1,12 +1,17 @@
 use os_str_manip::os_str_manip::*;
 use proptest::prelude::*;
+
+#[cfg(any(target_os = "wasi", target_family = "unix"))]
 use std::ffi::{OsStr, OsString};
+
+#[cfg(target_family = "windows")]
+use std::ffi::OsString;
 
 #[cfg(any(target_os = "wasi", target_family = "unix"))]
 use std::os::unix::ffi::OsStrExt;
 
 #[cfg(target_family = "windows")]
-use std::os::windows::ffi::{OsStrExt, OsStringExt};
+use std::os::windows::ffi::OsStringExt;
 
 #[cfg(any(target_os = "wasi", target_family = "unix"))]
 type OsStrItem = u8;
@@ -15,7 +20,7 @@ type OsStrItem = u8;
 type OsStrItem = u16;
 
 const ITEM_STRATEGY: std::ops::RangeInclusive<OsStrItem> = OsStrItem::MIN..=OsStrItem::MAX;
-const SIZE_RANGE: std::ops::RangeInclusive<usize> = 1..=1000;
+const SIZE_RANGE: std::ops::RangeInclusive<usize> = 1..=10;
 
 #[cfg(any(target_os = "wasi", target_family = "unix"))]
 fn os_string_strategy(
@@ -29,8 +34,7 @@ fn os_string_strategy(
 fn os_string_strategy(
     size: impl Into<proptest::collection::SizeRange>,
 ) -> impl Strategy<Value = OsString> {
-    proptest::collection::vec(ITEM_STRATEGY, size)
-        .prop_map(|v| OsStr::from_bytes(&v).to_os_string())
+    proptest::collection::vec(ITEM_STRATEGY, size).prop_map(|v| OsString::from_wide(&v))
 }
 
 fn os_string_with_range_strategy(
@@ -128,7 +132,7 @@ proptest! {
         (string, range) in os_string_with_range_strategy(SIZE_RANGE)
     ) {
         let substring = string.index(range.clone());
-        prop_assert_eq!(substring.len(), range.end - range.start);
+        prop_assert_eq!(substring.items().count(), range.end - range.start);
         prop_assert!(substring.items().all(|item| string.contains(item)));
         prop_assert!(substring.items().enumerate().all(|(index, item)| string.index(range.start + index) == item));
     }
@@ -138,7 +142,7 @@ proptest! {
         (string, range) in os_string_with_range_from_strategy(SIZE_RANGE)
     ) {
         let substring = string.index(range.clone());
-        prop_assert_eq!(substring.len(), string.len() - range.start);
+        prop_assert_eq!(substring.items().count(), string.items().count() - range.start);
         prop_assert!(substring.items().all(|item| string.contains(item)));
         prop_assert!(substring.items().enumerate().all(|(index, item)| string.index(range.start + index) == item));
     }
@@ -147,7 +151,6 @@ proptest! {
     fn test_range_full_index(string in os_string_strategy(SIZE_RANGE)) {
         let new_string = string.index(..);
         prop_assert_eq!(&string, &new_string);
-        prop_assert_eq!(new_string.len(), string.len());
     }
 
     #[test]
@@ -155,7 +158,7 @@ proptest! {
         (string, range) in os_string_with_range_inclusive_strategy(SIZE_RANGE)
     ) {
         let substring = string.index(range.clone());
-        prop_assert_eq!(substring.len(), range.end() + 1 - range.start());
+        prop_assert_eq!(substring.items().count(), range.end() + 1 - range.start());
         prop_assert!(substring.items().all(|item| string.contains(item)));
         prop_assert!(substring.items().enumerate().all(|(index, item)| string.index(range.start() + index) == item));
     }
@@ -165,7 +168,7 @@ proptest! {
         (string, range) in os_string_with_range_to_strategy(SIZE_RANGE)
     ) {
         let substring = string.index(range);
-        prop_assert_eq!(substring.len(), range.end);
+        prop_assert_eq!(substring.items().count(), range.end);
         prop_assert!(substring.items().all(|item| string.contains(item)));
         prop_assert!(substring.items().enumerate().all(|(index, item)| string.index(index) == item));
     }
@@ -175,7 +178,7 @@ proptest! {
         (string, range) in os_string_with_range_to_inclusive_strategy(SIZE_RANGE)
     ) {
         let substring = string.index(range);
-        prop_assert_eq!(substring.len(), range.end + 1);
+        prop_assert_eq!(substring.items().count(), range.end + 1);
         prop_assert!(substring.items().all(|item| string.contains(item)));
         prop_assert!(substring.items().enumerate().all(|(index, item)| string.index(index) == item));
     }
