@@ -90,7 +90,7 @@ pub trait OsStrManip: os_str_manip_sealed::Sealed {
     /// Construct a substring or get an item by index or range
     ///
     /// Note that when constructing a substring, this method constructs
-    /// a new, owned, [`OsString`]. This is due to platform limitations.
+    /// a new, owned, [`OsString`], due to platform limitations
     ///
     /// # Panics
     ///
@@ -107,7 +107,7 @@ pub trait OsStrManip: os_str_manip_sealed::Sealed {
     /// Like [`index`], but instead of panicking, it causes undefined behavior
     ///
     /// Note that when constructing a substring, this method constructs
-    /// a new, owned, [`OsString`]. This is due to platform limitations.
+    /// a new, owned, [`OsString`], due to platform limitations
     ///
     /// # Safety
     ///
@@ -123,20 +123,115 @@ pub trait OsStrManip: os_str_manip_sealed::Sealed {
     ///     - `idx.end() < self.len()`
     /// - If `idx: RangeTo<usize>` that `idx.end <= self.len()`
     /// - If `idx: RangeToInclusive<usize>` that `idx.end < self.len()`
-    /// - If `idx: usize` that `idx < `self.len()`
+    /// - If `idx: usize` that `idx < self.len()`
     /// - If `idx: RangeFull` then nothing is required
     ///
     /// [`index`]: OsStrManip::index
     unsafe fn index_unchecked(&self, idx: impl OsStrIndex) -> OsString;
     /// Check if an [`OsStr`] starts with a pattern
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use os_str_manip::os_str_manip::OsStrManip;
+    /// # use std::ffi::OsStr;
+    /// assert!(OsStr::new("Hello, world!").starts_with(OsStr::new("Hell")));
+    /// assert!(!OsStr::new("Lucifer").starts_with(OsStr::new("Money")));
+    /// assert!(OsStr::new("Opportunism").starts_with(OsStr::new("")));
+    /// assert!(!OsStr::new("Ferris").starts_with(OsStr::new("Ferris wheel")));
+    /// assert!(OsStr::new("Howl").starts_with(OsStr::new("Howl")));
+    /// ```
+    ///
+    /// ```
+    /// # use os_str_manip::os_str_manip::OsStrManip;
+    /// # use std::ffi::OsStr;
+    /// let str = OsStr::new("Optometrist");
+    /// assert!(str.starts_with(str.items().nth(0).unwrap()))
+    /// ```
     fn starts_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool;
     /// Check if an [`OsStr`] string ends with a pattern
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use os_str_manip::os_str_manip::OsStrManip;
+    /// # use std::ffi::OsStr;
+    /// assert!(OsStr::new("Sputnik").ends_with(OsStr::new("nik")));
+    /// assert!(!OsStr::new("Opera").ends_with(OsStr::new("Oxen")));
+    /// assert!(OsStr::new("Failure").ends_with(OsStr::new("")));
+    /// assert!(!OsStr::new("Cloak").ends_with(OsStr::new("Cloaked in shadow")));
+    /// assert!(OsStr::new("Moped").ends_with(OsStr::new("Moped")));
+    /// ```
+    ///
+    /// ```
+    /// # use os_str_manip::os_str_manip::OsStrManip;
+    /// # use std::ffi::OsStr;
+    /// let str = OsStr::new("Pipes");
+    /// assert!(str.ends_with(str.items().last().unwrap()))
+    /// ```
     fn ends_with<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool;
     /// Check if an [`OsStr`] string contains a pattern
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use os_str_manip::os_str_manip::OsStrManip;
+    /// # use std::ffi::OsStr;
+    /// assert!(OsStr::new("Coca-Cola").contains(OsStr::new("-")));
+    /// assert!(OsStr::new("Comedy").contains(OsStr::new("ome")));
+    /// assert!(OsStr::new("Plethora").contains(OsStr::new("Plethora")));
+    /// assert!(!OsStr::new("Oak").contains(OsStr::new("y")));
+    /// assert!(!OsStr::new("Bayesian").contains(OsStr::new("Bayesian inference")));
+    /// assert!(OsStr::new("Freeze").contains(OsStr::new("")));
+    /// ```
+    ///
+    /// ```
+    /// # use os_str_manip::os_str_manip::OsStrManip;
+    /// # use std::ffi::OsStr;
+    /// let str = OsStr::new("Idempotency");
+    /// assert!(str.contains(str.items().nth(4).unwrap()));
+    /// ```
     fn contains<'a>(&'a self, pat: impl OsStrPattern<'a>) -> bool;
     /// Remove the prefix matching a pattern from the start of an [`OsStr`]
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use os_str_manip::os_str_manip::OsStrManip;
+    /// # use std::ffi::OsStr;
+    /// assert_eq!(OsStr::new("Union").strip_prefix(OsStr::new("Un")).as_deref(), Some(OsStr::new("ion")));
+    /// assert_eq!(OsStr::new("Cape").strip_prefix(OsStr::new("pe")).as_deref(), None);
+    /// assert_eq!(OsStr::new("Flake").strip_prefix(OsStr::new("xy")).as_deref(), None);
+    /// assert_eq!(OsStr::new("Human").strip_prefix(OsStr::new("Humanity")).as_deref(), None);
+    /// assert_eq!(OsStr::new("Grapefruit").strip_prefix(OsStr::new("Grapefruit")).as_deref(), Some(OsStr::new("")));
+    /// ```
+    ///
+    /// ```
+    /// # use os_str_manip::os_str_manip::OsStrManip;
+    /// # use std::ffi::OsStr;
+    /// let str = OsStr::new("Hors d'oeuvre");
+    /// assert_eq!(str.strip_prefix(str.items().nth(0).unwrap()).as_deref(), Some(OsStr::new("ors d'oeuvre")));
+    /// ```
     fn strip_prefix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString>;
     /// Remove the suffix matching a pattern from the end of an [`OsStr`]
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use os_str_manip::os_str_manip::OsStrManip;
+    /// # use std::ffi::OsStr;
+    /// assert_eq!(OsStr::new("Globe").strip_suffix(OsStr::new("be")).as_deref(), Some(OsStr::new("Glo")));
+    /// assert_eq!(OsStr::new("Caretaker").strip_suffix(OsStr::new("Ca")).as_deref(), None);
+    /// assert_eq!(OsStr::new("Upright").strip_suffix(OsStr::new("foo")).as_deref(), None);
+    /// assert_eq!(OsStr::new("Color").strip_suffix(OsStr::new("New Color")).as_deref(), None);
+    /// assert_eq!(OsStr::new("Ink").strip_suffix(OsStr::new("Ink")).as_deref(), Some(OsStr::new("")));
+    /// ```
+    /// ```
+    /// # use os_str_manip::os_str_manip::OsStrManip;
+    /// # use std::ffi::OsStr;
+    /// let str = OsStr::new("Catacombs");
+    /// assert_eq!(str.strip_suffix(str.items().last().unwrap()).as_deref(), Some(OsStr::new("Catacomb")));
+    /// ```
     fn strip_suffix<'a>(&'a self, pat: impl OsStrPattern<'a>) -> Option<OsString>;
 }
 
@@ -331,6 +426,13 @@ pub trait OsStringFromIter:
     Iterator<Item = OsStrItem> + os_string_from_iter_sealed::Sealed + Sized
 {
     /// Collect an iterator over items of an [`OsStr`] into an new, owned, [`OsString`]
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use os_str_manip::os_str_manip::OsStringFromIter;
+    /// assert_eq!(OsStr::new("Puppet").items().to_os_string(), OsStr::new("Puppet").to_os_string());
+    /// ```
     #[cfg(not(doc))]
     #[cfg(any(target_os = "wasi", target_family = "unix"))]
     fn to_os_string(self) -> OsString {
@@ -535,11 +637,11 @@ impl OsStrSearcher for OsStrItemSearcher<'_> {
         let result = match self.haystack.next() {
             Some(item) if item == self.needle => {
                 self.finger += 1;
-                OsStrSearchStep::Match(self.finger, self.finger + 1)
+                OsStrSearchStep::Match(self.finger - 1, self.finger)
             }
             Some(_) => {
                 self.finger += 1;
-                OsStrSearchStep::Reject(self.finger, self.finger + 1)
+                OsStrSearchStep::Reject(self.finger - 1, self.finger)
             }
             None => OsStrSearchStep::Done,
         };

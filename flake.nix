@@ -19,5 +19,8 @@
       devShells.nightly = pkgs.mkShell {
         packages = [ fenix.packages.${system}.complete.toolchain ];
       };
+      devShells.cross = pkgs.mkShell {
+        packages = with pkgs; [ cargo-cross rustup ];
+      };
     });
 }
