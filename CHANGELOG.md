@@ -1,6 +1,10 @@
 Changelog for os-str-manip
 ==========================
 
+0.0.3
+-----
+Fix another documentation error
+
 0.0.2
 -----
 Fixed up documentation and added some assertions

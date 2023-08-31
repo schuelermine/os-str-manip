@@ -6,4 +6,4 @@ It supports Windows, Unix, and WASI.
 
 Note that this crate does not have proper tests yet, hence it is still at major version 0.
 
-See the [documentation](https://docs.rs/os-str-manip/0.0.2/os_str_manip/index.html) for more details.
+See the [documentation](https://docs.rs/os-str-manip/0.0.3/os_str_manip/index.html) for more details.
