@@ -1,3 +1,5 @@
+# ⚠️ This code is currently broken! DO NOT USE (on Windows)
+
 # os-str-manip
 
 The crate os-str-manip is a crate for manipulating `OsStr` and `OsString` values with a cross-platform API.
